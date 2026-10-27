@@ -86,7 +86,7 @@ src/tender_analyzer/   application code
   text_signals.py      measurable text-quality signals
   reliability.py       per-page reliability verdict
 scripts/               data preparation and experiments behind every decision
-tests/                 unit tests for normalization and reliability
+tests/                 unit tests for normalization, text signals and reliability
 ```
 
 ## Setup
