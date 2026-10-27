@@ -1,0 +1,24 @@
+# Local virtual environment; each machine recreates it from requirements.txt
+.venv/
+
+# Python bytecode caches are generated automatically and differ per machine
+__pycache__/
+*.py[cod]
+
+# Source PDFs are re-downloadable from the KHMDHS API by ADAM,
+# and extracted text is regenerable from them, so neither belongs in history
+data/raw/
+data/processed/
+
+# API keys for LLM providers will live here; must never be committed
+.env
+
+# Windows-generated metadata files
+Thumbs.db
+desktop.ini
+
+# Test-runner cache, regenerated on every run
+.pytest_cache/
+
+# Packaging metadata created by "pip install -e .", regenerated on install
+*.egg-info/
