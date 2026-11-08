@@ -40,3 +40,10 @@ self-contained?
 - `evidence_page`: first physical page (as shown in the PDF viewer) where the
   participation terms clearly appear; for long tenders usually the table of contents.
 - `notes`: short reason, without commas; write `unsure` when in doubt, to review later.
+
+- **"Invitation to express interest"** (*πρόσκληση εκδήλωσης ενδιαφέροντος*)
+  is `full_tender` when it asks for bids with a deadline and terms.
+  Example: `24PROC014197049`.
+- **Legal preambles** ("Έχοντας υπόψη...") appear in almost every public
+  document and do not indicate `decision`; only the absence of
+  participation terms does.
