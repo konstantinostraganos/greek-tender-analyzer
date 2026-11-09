@@ -67,3 +67,30 @@ def test_degrees_celsius_is_untouched():
 
 def test_latin_capital_i_with_diaeresis_inside_greek_word_is_fixed():
     assert normalize_text("ΕΥΡΩΠΑ\u00cfΚΟΥ") == "ΕΥΡΩΠΑ\u03aaΚΟΥ"
+
+def test_increment_sign_inside_word_becomes_delta():
+    # INCREMENT splits the word; after the fix it is one Greek word again.
+    assert normalize_text("ΤΣΟΛΑΚΙ\u2206ΟΥ") == "ΤΣΟΛΑΚΙΔΟΥ"
+
+
+def test_increment_sign_and_micro_sign_are_both_fixed():
+    # Seen in 24PROC014094121: the delta fix must run first so the word is
+    # whole when the micro-sign rule looks at it.
+    assert normalize_text("\u2206ήµος") == "Δήμος"
+
+
+def test_registry_code_with_latin_a_and_increment_becomes_greek():
+    # 'A∆A' (Latin A, INCREMENT, Latin A) is the decision code ΑΔΑ.
+    assert normalize_text("A\u2206A") == "ΑΔΑ"
+
+
+def test_broken_pi_followed_by_space_is_fixed():
+    assert normalize_text("Υ\u031f ηρεσιών") == "Υπηρεσιών"
+
+
+def test_broken_pi_followed_by_line_break_is_fixed():
+    assert normalize_text("Οι \u031f\nαρεχόμενες") == "Οι παρεχόμενες"
+
+
+def test_soft_hyphen_inside_word_is_removed():
+    assert normalize_text("υπο\u00adχρέωση") == "υποχρέωση"    

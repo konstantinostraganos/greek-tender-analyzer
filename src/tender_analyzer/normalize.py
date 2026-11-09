@@ -1,6 +1,7 @@
 """Targeted text normalization for Greek tender PDFs.
 
-Each rule fixes a problem observed in the sample documents. A blanket Unicode
+Each rule fixes a problem observed in the sample documents; the characters
+were chosen with scripts/scan_odd_characters.py. A blanket Unicode
 normalization (NFKC) is deliberately avoided: it also rewrites superscripts as
 plain digits, which would glue footnote markers onto amounts
 ('15.000²' would become '15.0002').
@@ -26,6 +27,20 @@ LOOKALIKE_CODES = set(LOOKALIKE_TO_GREEK)
 # made only of I, V, X look-alikes goes the other way: Greek Iota and Chi to Latin.
 ROMAN_LETTERS = set("IVXivx") | {"Ι", "Χ", "ι", "χ"}
 GREEK_TO_LATIN_ROMAN = str.maketrans({"Ι": "I", "Χ": "X", "ι": "i", "χ": "x"})
+
+# INCREMENT (a math symbol) used in place of capital delta by some fonts.
+# It is not a letter, so it splits words ("ΤΣΟΛΑΚΙ∆ΟΥ") before the mixed-word
+# rule can see them; it is therefore replaced first and everywhere.
+INCREMENT_SIGN = "\u2206"
+GREEK_CAPITAL_DELTA = "\u0394"
+
+# One font in the sample maps lowercase pi to COMBINING PLUS SIGN BELOW
+# followed by a space or line break ("Υ̟ ηρεσιών"). The mark has no legitimate
+# use in Greek text, so it and that one following break become pi.
+BROKEN_PI = re.compile("\u031f\\s?")
+
+# Invisible hyphenation hint from word processors; inside a word it breaks search.
+SOFT_HYPHEN = "\u00ad"
 
 LETTER_RUN = re.compile(r"[^\W\d_]+")
 
@@ -63,4 +78,9 @@ def normalize_text(text):
     """Return a search-friendly version of page text; the raw text is kept separately."""
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     text = REGISTRY_STAMP_LINE.sub("", text)
+    # Character-level repairs come before the word-level rule, because they
+    # rejoin words that the mixed-word rule would otherwise see in pieces.
+    text = text.replace(INCREMENT_SIGN, GREEK_CAPITAL_DELTA)
+    text = BROKEN_PI.sub("π", text)
+    text = text.replace(SOFT_HYPHEN, "")
     return LETTER_RUN.sub(_fix_mixed_word, text)
