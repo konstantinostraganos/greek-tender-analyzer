@@ -35,8 +35,12 @@ MAX_UNRELIABLE_SHARE = 0.5
 # misread both notices as tenders, so this case is settled by rule before any request.
 EU_FORM_MARKER = "ii.1.1)"
 
+# How much the gpt-oss models think before answering. "medium" was measured too: it fixed
+# none of the misread summaries and used noticeably more of the daily token limit.
+REASONING_EFFORT = "low"
+
 # Bumped whenever the prompt changes, so cached answers to an older prompt are not reused.
-PROMPT_VERSION = 1
+PROMPT_VERSION = 2
 
 SYSTEM_PROMPT = """\
 You classify Greek public procurement documents published in the KHMDHS registry.
@@ -64,8 +68,25 @@ The excerpt is the beginning of the document, possibly cut off. Pages are marked
 "[Page N]" with physical page numbers. The text was extracted from a PDF and may contain \
 extraction noise.
 
+Before choosing the label, look for two things and copy the exact sentence if found:
+1. refers_elsewhere_quote: a sentence saying that the full tender text or the full \
+participation terms are in another document (for example "Το συνολικό κείμενο της \
+διακήρυξης αναρτάται ..." or "σύμφωνα με τους όρους της διακήρυξης"). These do NOT count: \
+a sentence saying that a summary of THIS document will be published elsewhere \
+("Περίληψη της παρούσας ..."), references to laws or decisions, and references to annexes \
+of this same document.
+2. framework_quote: a sentence showing that this document is a call-off: an invitation to \
+the parties of an already concluded framework agreement ("συμφωνία-πλαίσιο") to bid for one \
+specific contract ("εκτελεστική σύμβαση"). A tender whose purpose is to conclude a new \
+framework agreement ("για τη σύναψη συμφωνίας-πλαισίου") is not a call-off.
+
+Then decide: if refers_elsewhere_quote is found, the document is not self-contained and \
+must not be labelled full_tender. If framework_quote is found, label it other.
+
 Answer with a JSON object only:
-{"label": one of the labels above,
+{"refers_elsewhere_quote": the exact sentence copied from the excerpt, or null,
+ "framework_quote": the exact sentence copied from the excerpt, or null,
+ "label": one of the labels above,
  "evidence_page": physical page number of the content that decided the label, or null,
  "reason": one short sentence in English}"""
 
@@ -80,6 +101,11 @@ class DocumentCheck:
     label: str | None  # None means undecided: unreadable text or an invalid answer
     evidence_page: int | None
     reason: str
+    # Sentences the model claims to have found; kept so its decision can be checked.
+    refers_elsewhere_quote: str | None = None
+    framework_quote: str | None = None
+    # False when a quoted sentence is not in the excerpt, i.e. the model invented it.
+    quotes_verified: bool = True
     prompt_tokens: int = 0
     completion_tokens: int = 0
     cached: bool = False
@@ -114,18 +140,41 @@ def build_excerpt(pages, max_chars=MAX_EXCERPT_CHARS):
     return "\n".join(parts)
 
 
-def _parse_answer(content):
+def _squash(text):
+    # Line breaks and spacing differ between what the model copies and the excerpt.
+    return " ".join(text.split()).lower()
+
+
+def _quote(answer, field, excerpt):
+    """Return the quoted sentence (or None) and whether it really occurs in the excerpt."""
+    quote = answer.get(field)
+    if not isinstance(quote, str) or not quote.strip():
+        return None, True
+    return quote.strip(), _squash(quote) in _squash(excerpt)
+
+
+def _parse_answer(content, excerpt):
     try:
         answer = json.loads(content)
     except (json.JSONDecodeError, TypeError):
-        return None, None, f"answer is not JSON: {str(content)[:80]!r}"
+        return {"label": None, "evidence_page": None,
+                "reason": f"answer is not JSON: {str(content)[:80]!r}"}
     label = answer.get("label")
     if label not in LABELS:
-        return None, None, f"unknown label {label!r}"
+        return {"label": None, "evidence_page": None, "reason": f"unknown label {label!r}"}
     page = answer.get("evidence_page")
     # Models sometimes return the page as text ("3"); anything non-numeric is dropped.
     page = int(page) if isinstance(page, (int, str)) and str(page).isdigit() else None
-    return label, page, str(answer.get("reason", ""))
+    elsewhere, elsewhere_ok = _quote(answer, "refers_elsewhere_quote", excerpt)
+    framework, framework_ok = _quote(answer, "framework_quote", excerpt)
+    return {
+        "label": label,
+        "evidence_page": page,
+        "reason": str(answer.get("reason", "")),
+        "refers_elsewhere_quote": elsewhere,
+        "framework_quote": framework,
+        "quotes_verified": elsewhere_ok and framework_ok,
+    }
 
 
 def classify_document(pages, client, model=DEFAULT_MODEL, cache_dir=None):
@@ -134,21 +183,18 @@ def classify_document(pages, client, model=DEFAULT_MODEL, cache_dir=None):
     unreliable_share = sum(1 for page in pages if not page.reliable) / len(pages)
     if unreliable_share > MAX_UNRELIABLE_SHARE:
         return DocumentCheck(None, None, f"{unreliable_share:.0%} of pages unreliable")
-    
 
     for page in pages:
         if page.reliable and EU_FORM_MARKER in page.text.lower():
             return DocumentCheck("eu_notice", page.number, f"rule: EU form section {EU_FORM_MARKER}")
 
-            
-    
     excerpt = build_excerpt(pages)
 
     # Keyed by what is actually sent, so a change in model, prompt or extracted text
     # automatically leads to a fresh request instead of a stale cached answer.
     cache_path = None
     if cache_dir is not None:
-        key = hashlib.sha256(f"{model}|{PROMPT_VERSION}|{excerpt}".encode()).hexdigest()[:16]
+        key = hashlib.sha256(f"{model}|{PROMPT_VERSION}|{REASONING_EFFORT}|{excerpt}".encode()).hexdigest()[:16]
         cache_path = Path(cache_dir) / f"{key}.json"
         if cache_path.exists():
             stored = json.loads(cache_path.read_text(encoding="utf-8"))
@@ -156,8 +202,7 @@ def classify_document(pages, client, model=DEFAULT_MODEL, cache_dir=None):
 
     options = {}
     if model.startswith("openai/gpt-oss"):
-        # Reasoning tokens count against the per-minute limit; this task needs little of it.
-        options["reasoning_effort"] = "low"
+        options["reasoning_effort"] = REASONING_EFFORT
 
     response = client.chat.completions.create(
         model=model,
@@ -169,17 +214,14 @@ def classify_document(pages, client, model=DEFAULT_MODEL, cache_dir=None):
         temperature=0,
         **options,
     )
-    label, page, reason = _parse_answer(response.choices[0].message.content)
     result = DocumentCheck(
-        label,
-        page,
-        reason,
+        **_parse_answer(response.choices[0].message.content, excerpt),
         prompt_tokens=response.usage.prompt_tokens,
         completion_tokens=response.usage.completion_tokens,
     )
 
     # Invalid answers are not cached, so the next run asks again instead of repeating them.
-    if cache_path is not None and label is not None:
+    if cache_path is not None and result.label is not None:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         cache_path.write_text(json.dumps(asdict(result), ensure_ascii=False), encoding="utf-8")
     return result

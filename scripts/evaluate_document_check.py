@@ -91,6 +91,13 @@ def llm_checker(model):
         else:
             source = f"tokens={result.prompt_tokens}+{result.completion_tokens}"
         details = f"label={result.label} page={result.evidence_page} {source} | {result.reason}"
+        # The quotes show what the model based its decision on, which is the point of asking.
+        if result.refers_elsewhere_quote:
+            details += f"\n      refers elsewhere: {result.refers_elsewhere_quote}"
+        if result.framework_quote:
+            details += f"\n      framework: {result.framework_quote}"
+        if not result.quotes_verified:
+            details += "\n      WARNING: a quote is not in the excerpt (invented by the model)"
         decided = None if result.label is None else result.label == POSITIVE_LABEL
         return Verdict(decided, details)
 
@@ -148,6 +155,16 @@ def evaluate(name, checker, labels, pages_by_adam):
 
 def main():
     labels = load_labels()
+    # Optional ADAMs after the checker name restrict the run to those documents, so a
+    # change can be tried on a few telling cases before a full run spends the daily limit.
+    only = set(sys.argv[2:])
+    if only:
+        unknown = only - set(labels)
+        if unknown:
+            print(f"Unknown ADAMs: {', '.join(sorted(unknown))}")
+            sys.exit(1)
+        labels = {adam: label for adam, label in labels.items() if adam in only}
+
     missing = [adam for adam in labels if not (PDF_DIR / f"{adam}.pdf").exists()]
     if missing:
         print(f"Missing PDFs: {', '.join(missing)}")
@@ -156,7 +173,7 @@ def main():
     # Extracted once and shared, so adding checkers does not multiply the PDF reading time.
     pages_by_adam = {adam: extract_pages(PDF_DIR / f"{adam}.pdf") for adam in labels}
 
-    # An optional argument runs only the checkers whose name contains it, e.g. "llm".
+    # The first argument runs only the checkers whose name contains it, e.g. "llm".
     selected = sys.argv[1] if len(sys.argv) > 1 else ""
     for name, make_checker in CHECKERS.items():
         if selected in name:
