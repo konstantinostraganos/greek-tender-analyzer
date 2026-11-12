@@ -235,7 +235,6 @@ The attachment endpoint rate-limits well below the documented 350 requests
 per minute; rerunning the script fetches only the files that failed.
 
 ## License
-
 Copyright (C) 2026 Konstantinos Traganos
 
 GNU AGPL-3.0, see [LICENSE](LICENSE). The project depends on PyMuPDF,
