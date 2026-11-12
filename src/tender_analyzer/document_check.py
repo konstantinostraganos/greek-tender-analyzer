@@ -40,7 +40,7 @@ EU_FORM_MARKER = "ii.1.1)"
 REASONING_EFFORT = "low"
 
 # Bumped whenever the prompt changes, so cached answers to an older prompt are not reused.
-PROMPT_VERSION = 2
+PROMPT_VERSION = 3
 
 SYSTEM_PROMPT = """\
 You classify Greek public procurement documents published in the KHMDHS registry.
