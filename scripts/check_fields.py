@@ -89,10 +89,13 @@ def check_row(row, pages, errors, warnings, where):
     # The point of this check: if our own text does not contain what the person saw,
     # no extraction method can find it, and the page number may be the printed one.
     target = squash(quote)
-    if target in squash(pages[int(page) - 1].text):
-        return
     found_on = [p.number for p in pages if target in squash(p.text)]
-    if found_on:
+    if int(page) in found_on:
+        # The guidelines ask for the first page that states the value.
+        earlier = [number for number in found_on if number < int(page)]
+        if earlier:
+            warnings.append(f"{where}: quote also on earlier page(s) {earlier}")
+    elif found_on:
         warnings.append(f"{where}: quote not on page {page} but on page(s) {found_on}")
     else:
         warnings.append(f"{where}: quote not found in extracted text (table cell or typo?)")
