@@ -26,36 +26,36 @@
 24PROC014197049,deadline,stated,2024-02-05 10:00,3,table cell,"Καταληκτική Ημερομηνία Υποβολής Προσφορών 05/02/2024, ημέρα ΔΕΥΤΕΡΑ και ώρα 10.00"
 24PROC014197049,estimated_value,stated,1350.00,1,table cell - text elsewhere gives only 1674.00 with VAT - art 80 threshold of 2500 is a trap,"ΠΡΟΥΠ. ΔΑΠΑΝΗ ΧΩΡΙΣ ΦΠΑ 1.350,00"
 24PROC014197049,bid_guarantee,not_mentioned,,,only performance guarantee is said not required,
-24PROC014901882,deadline,,,,,
-24PROC014901882,estimated_value,,,,,
-24PROC014901882,bid_guarantee,,,,,
-24PROC014660981,deadline,,,,,
-24PROC014660981,estimated_value,,,,,
-24PROC014660981,bid_guarantee,,,,,
-24PROC015001427,deadline,,,,,
-24PROC015001427,estimated_value,,,,,
-24PROC015001427,bid_guarantee,,,,,
-24PROC014177375,deadline,,,,,
-24PROC014177375,estimated_value,,,,,
-24PROC014177375,bid_guarantee,,,,,
-24PROC014286978,deadline,,,,,
-24PROC014286978,estimated_value,,,,,
-24PROC014286978,bid_guarantee,,,,,
-24PROC014579652,deadline,,,,,
-24PROC014579652,estimated_value,,,,,
-24PROC014579652,bid_guarantee,,,,,
-24PROC014094121,deadline,,,,,
-24PROC014094121,estimated_value,,,,,
-24PROC014094121,bid_guarantee,,,,,
-24PROC014199834,deadline,,,,,
-24PROC014199834,estimated_value,,,,,
-24PROC014199834,bid_guarantee,,,,,
-24PROC014896940,deadline,,,,,
-24PROC014896940,estimated_value,,,,,
-24PROC014896940,bid_guarantee,,,,,
-24PROC015001258,deadline,,,,,
-24PROC015001258,estimated_value,,,,,
-24PROC015001258,bid_guarantee,,,,,
-24PROC014385257,deadline,,,,,
-24PROC014385257,estimated_value,,,,,
-24PROC014385257,bid_guarantee,,,,,
+24PROC014901882,deadline,stated,2024-07-12 15:00,2,table cell - electronic submission,"Ηλεκτρονική Υποβολή: 12-7-2024, ημέρα , ώρα 15:00"
+24PROC014901882,estimated_value,stated,851000.00,1,table - includes option 60000 - base 791000,"Η Συνολική εκτιμώμενη αξία της σύμβασης ανέρχεται σε: 851.000,00€ μη περιλαμβανομένου ΦΠΑ"
+24PROC014901882,bid_guarantee,required,2% / 15820.00,20,2 percent of base value without option,"Για την έγκυρη συμμετοχή στη διαδικασία σύναψης της παρούσας σύμβασης, κατατίθεται από τους συμμετέχοντες οικονομικούς φορείς (προσφέροντες), εγγυητική επιστολή συμμετοχής σύμφωνα με το αντίστοιχο υπόδειγμα στο ΠΑΡΑΡΤΗΜΑ VI – Υποδείγματα Εγγυητικών Επιστολών» της παρούσας, ποσού δεκαπέντε χιλιάδων οχτακοσίων είκοσι ευρώ (15.820,00€), η οποία αντιστοιχεί στο 2% της εκτιμώμενης αξίας της σύμβασης μη συμπεριλαμβανομένου ΦΠΑ και του δικαιώματος προαίρεσης."
+24PROC014660981,deadline,stated,2024-05-13 15:00,9,footnote marker 16 in quote,"Η καταληκτική ημερομηνία παραλαβής των προσφορών είναι η 13/05/2024 και ώρα 15:00 μ.μ.16"
+24PROC014660981,estimated_value,stated,220850.00,6,sum of 11 lots,"Η εκτιμώμενη αξία της σύμβασης ανέρχεται στο ποσό των 220.850,00 € μη συμπεριλαμβανομένου ΦΠΑ 24 % (εκτιμώμενη αξία συμπεριλαμβανομένου ΦΠΑ: € 273.854,00)."
+24PROC014660981,bid_guarantee,required,per lot table,15,11 lots from 25.00 to 534.50 - each equals 1 percent of its lot - total 2208.50 - percent not written,"Για την έγκυρη συμμετοχή στη διαδικασία σύναψης της παρούσας σύμβασης κατατίθεται από τους συμμετέχοντες οικονομικούς φορείς (προσφέροντες) εγγυητική επιστολή συμμετοχής42, ποσού σύμφωνα με τον παρακάτω πίνακα:"
+24PROC015001427,deadline,stated,2024-07-05 14:00,2,date written in words,"παρακαλούμε να καταθέσετε την προσφορά σας με e-mail έως την 5η Ιουλίου 2024 ημέρα Παρασκευή και ώρα 14:00 μ.μ."
+24PROC015001427,estimated_value,stated,1915.80,1,with VAT - no amount without VAT given,"συνολικής ενδεικτικής δαπάνης 1.915,80€ με φπα"
+24PROC015001427,bid_guarantee,not_mentioned,,,,
+24PROC014177375,deadline,stated,εντός πέντε (5) ημερών,X,relative deadline - no start point stated - document dated 2024-01-26,"Παρακαλούμε όπως, η προσφορά σας περιέλθει στην Υπηρεσία μας εντός πέντε (5) ημερών."
+24PROC014177375,estimated_value,not_mentioned,,,registry metadata says 29900 but document gives no amount,
+24PROC014177375,bid_guarantee,not_mentioned,,,,
+24PROC014286978,deadline,stated,2024-02-23 14:00,1,,"Καταληκτική ημερομηνία υποβολής προσφορών: Παρασκευή, 23-02-2024 και ώρα 14:00"
+24PROC014286978,estimated_value,stated,27419.35,1,worded as budget - first amount 34000 is with VAT,"Προϋπολογισθείσα δαπάνη: 34.000,00 € (27.419,35 € πλέον Φ.Π.Α. ύψους 6.580,65 €)"
+24PROC014286978,bid_guarantee,not_mentioned,,,,
+24PROC014579652,deadline,stated,2024-05-23 15:00,35,,"Η καταληκτική ημερομηνία παραλαβής των προσφορών είναι η Πέμπτη , 23/05/2024 και ώρα 15:00."
+24PROC014579652,estimated_value,stated,3451936.40,13,table total of 106 lots - no sentence states the total,"ΣΥΝΟΛΟ ΠΡΟ ΦΠΑ ΤΜΗΜΑΤΩΝ 1- 106 3.451.936,40€"
+24PROC014579652,bid_guarantee,required,2% per lot,38,106 lots,"Για την έγκυρη συμμετοχή στη διαδικασία σύναψης της παρούσας σύμβασης, κατατίθεται από τους συμμετέχοντες οικονομικούς φορείς (προσφέροντες), εγγυητική επιστολή συμμετοχής, που ανέρχεται σε ποσοστό 2% επί της συνολικής καθαρής προϋπολογισθείσας δαπάνης, με στρογγυλοποίηση στο δεύτερο δεκαδικό ψηφίο, για το σύνολο των ειδών του κάθε τμήματος που συμμετέχει ο οικονομικός φορέας."
+24PROC014094121,deadline,stated,2024-02-05 15:00,8,,"Η καταληκτική ημερομηνία παραλαβής των προσφορών είναι η 05/02/2024 και ώρα 15:00."
+24PROC014094121,estimated_value,stated,216600.00,6,first amount 268584 is with VAT,"Η εκτιμώμενη αξία της σύμβασης ανέρχεται στο ποσό των 268.584,00 € συμπεριλαμβανομένου ΦΠΑ 24 % (προϋπολογισμός χωρίς ΦΠΑ: 216.600,00€, ΦΠΑ : 51.984,00€)"
+24PROC014094121,bid_guarantee,required,per lot: A 2008.00 / B 2324.00,12,2 lots - sum 4332 equals 2 percent of value - percent not written,"Για την έγκυρη συμμετοχή στη διαδικασία σύναψης της παρούσας σύμβασης, κατατίθεται από τους συμμετέχοντες οικονομικούς φορείς (προσφέροντες), εγγυητική επιστολή συμμετοχής που ανέρχεται για την ΟΜΑΔΑ Α στο ποσό των δύο χιλιάδων οκτώ ευρώ (2.008,00€) και για την ΟΜΑΔΑ Β στο ποσό των δύο χιλιάδων τριακοσίων είκοσι τεσσάρων ευρώ (2.324,00€)."
+24PROC014199834,deadline,stated,2024-02-16,6,no time - whole day,"Ή καταληκτική ημερομηνία παραλαβής των προσφορών είναι η Παρασκευή 16/02/2024 καθ΄όλη τη διάρκειά της."
+24PROC014199834,estimated_value,stated,85140.00,1,worded as budget in title - re-issued tender,"με προϋπολογισθείσα δαπάνη 85.140,00 € πλέον Φ.Π.Α"
+24PROC014199834,bid_guarantee,required,2%,10,amount not stated - would be 1702.80,"Για την έγκυρη συμμετοχή στη διαδικασία σύναψης της παρούσας σύμβασης, κατατίθεται από τους συμμετέχοντες οικονομικούς φορείς (προσφέροντες), εγγυητική επιστολή συμμετοχής ίση με το 2% της εκτιμώμενης αξίας της σύμβασης, ήτοι την προϋπολογισθείσα δαπάνη χωρίς Φ.Π.Α."
+24PROC014896940,deadline,stated,2024-06-12 10:30,3,,"Ημερομηνία Λήξης Υποβολής Προσφορών 12-06-2024, ημέρα ΤΕΤΑΡΤΗ και ώρα 10:30 π.μ."
+24PROC014896940,estimated_value,stated,25000.00,1,worded as budget - table lists 4 per-patient amounts that sum to it,"έναντι προϋπολογισθείσας δαπάνης 25.000,00€ πλέον ΦΠΑ"
+24PROC014896940,bid_guarantee,not_mentioned,,,,
+24PROC015001258,deadline,stated,2024-07-19 15:00,8,,"Η καταληκτική ημερομηνία παραλαβής των προσφορών είναι η 19/07/2024 και ώρα 15:00."
+24PROC015001258,estimated_value,stated,50710.68,1,plus option 50710.68 - no total stated - restricted to social cooperatives,"ΠΡΟΫΠΟΛΟΓΙΣΘΕΙΣΑΣ ΔΑΠΑΝΗΣ 50.710,68 ΕΥΡΩ ΠΛΕΟΝ Φ.Π.Α. 24% ΠΛΕΟΝ ΔΙΚΑΙΩΜΑΤΟΣ ΠΡΟΑΙΡΕΣΗΣ 50.710,68 ΕΥΡΩ ΠΛΕΌΝ Φ.Π.Α."
+24PROC015001258,bid_guarantee,required,1014.21,12,equals 2 percent of 50710.68,"Για την έγκυρη συμμετοχή στη διαδικασία σύναψης της παρούσας σύμβασης κατατίθεται από τους συμμετέχοντες Κοι.Σ.Π.Ε. (προσφέροντες), εγγυητική επιστολή συμμετοχής, ποσού 1.014,21 ευρώ (χιλίων δεκατεσσάρων ευρώ και είκοσι ενός λεπτών)."
+24PROC014385257,deadline,stated,2024-03-13 10:00,X,table cell,"Ημερομηνία λήξης υποβολής προσφορών 13-03-2024 ημέρα ΤΕΤΑΡΤΗ ΚΑΙ ΩΡΑ 10:00"
+24PROC014385257,estimated_value,stated,5300.00,1,table cell - unit price without VAT for quantity 1 - total line 6572 is with VAT,"1 5.300€ 5.300€ 6.572 €"
+24PROC014385257,bid_guarantee,not_mentioned,,,only a 12-month warranty on parts is mentioned,
