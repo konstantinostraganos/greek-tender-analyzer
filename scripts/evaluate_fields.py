@@ -37,6 +37,25 @@ def guarantee_numbers(value):
     return percents, amounts
 
 
+def greek_amount(number):
+    # 55000.0 -> "55.000,00", the way amounts are printed in the documents.
+    return f"{number:,.2f}".replace(",", " ").replace(".", ",").replace(" ", ".")
+
+
+def value_renderings(field, gold):
+    """Ways the labelled value can be printed in a document, used to accept a page."""
+    value = gold["value"]
+    if field == "deadline" and re.fullmatch(r"\d{4}-\d{2}-\d{2}.*", value):
+        year, month, day = value[:10].split("-")
+        days, months = {day, day.lstrip("0")}, {month, month.lstrip("0")}
+        return {f"{d}{sep}{m}{sep}{year}" for d in days for m in months for sep in "/-."}
+    if field == "estimated_value" and AMOUNT.fullmatch(value):
+        return {greek_amount(float(value))}
+    if field == "bid_guarantee":
+        return {greek_amount(amount) for amount in guarantee_numbers(value)[1]}
+    return set()
+
+
 def value_scorable(field, gold):
     if gold["status"] not in PRESENT or not gold["value"]:
         return False
@@ -100,10 +119,11 @@ def score(method):
             if not value_ok:
                 flags.append("value")
 
-        # Any page that contains the labelled sentence counts, not only the first one.
+        # A page counts if it holds the labelled sentence or the value itself, so a
+        # method that finds the same value stated in other words elsewhere is not penalised.
         if gold["quote"]:
-            target = squash(gold["quote"])
-            gold_pages = {p.number for p in pages if target in squash(p.text)}
+            targets = {squash(gold["quote"])} | {squash(r) for r in value_renderings(field, gold)}
+            gold_pages = {p.number for p in pages if any(t in squash(p.text) for t in targets)}
             page = predicted.get("page", "")
             page_ok = page.isdigit() and int(page) in gold_pages
             totals[field]["page"][0] += page_ok

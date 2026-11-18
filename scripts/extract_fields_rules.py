@@ -1,195 +1,146 @@
-"""Score field predictions against the manual labels in data/labels/fields.csv.
+"""Baseline field extraction with simple keyword-and-pattern rules, no LLM.
 
-Every extraction method writes its answers to data/processed/predictions/<name>.csv
-with the same columns as the labels, and this script scores them. Keeping the two
-apart means an expensive LLM run happens once and can be re-scored freely, and that
-all methods are judged by exactly the same rules, which were fixed before any
-method was run.
+Each field is found by taking the first number of the right shape that follows a
+typical phrase. The rules are deliberately generic: they are the yardstick an
+LLM must beat, so they are not tuned to any labelled document.
 """
 
 import csv
 import re
-import sys
+import unicodedata
 
 from tender_analyzer.pages import extract_pages
 
 # Works because Python puts this script's own folder (scripts/) on the import path.
-from check_fields import FIELDS_PATH, squash
+from check_fields import FIELDS_PATH
 from evaluate_document_check import PDF_DIR, PROJECT_ROOT
+from evaluate_fields import PREDICTIONS_DIR
 
-PREDICTIONS_DIR = PROJECT_ROOT / "data" / "processed" / "predictions"
-FIELDS = ("deadline", "estimated_value", "bid_guarantee")
-PRESENT = {"stated", "required", "explicitly_not_required", "optional", "refers_elsewhere"}
+OUT_PATH = PREDICTIONS_DIR / "rules.csv"
+COLUMNS = ["adam", "field", "status", "value", "page", "notes", "quote"]
 
-PERCENT = re.compile(r"(\d+(?:\.\d+)?)\s*%")
-AMOUNT = re.compile(r"(?<![\d.])\d+\.\d{2}(?![\d.])")
+# Phrases are written folded (lowercase, no accents) and matched against folded text.
+DEADLINE_PHRASE = re.compile(r"καταληκτικ\w* ημερομηνι\w*|ληξης υποβολης")
+VALUE_PHRASE = re.compile(r"εκτιμωμεν\w* αξι\w*|προυπολογισ\w*")
+GUARANTEE_PHRASE = re.compile(r"εγγυηση συμμετοχης|εγγυητικη επιστολη συμμετοχης")
 
+DATE = re.compile(r"(\d{1,2})\s*[/.-]\s*(\d{1,2})\s*[/.-]\s*(\d{4})")
+TIME = re.compile(r"ωρα\s*:?\s*(\d{1,2})[:.](\d{2})")
+GREEK_AMOUNT = re.compile(r"\d{1,3}(?:\.\d{3})*,\d{2}")
+PERCENT = re.compile(r"(\d+(?:,\d+)?)\s*%")
 
-def load(path):
-    with path.open(encoding="utf-8-sig", newline="") as handle:
-        return {(row["adam"], row["field"]): row for row in csv.DictReader(handle)}
+# How far after the phrase a value may sit; long enough for "... είναι η Πέμπτη,"
+# and similar fillers, short enough not to reach the next paragraph's numbers.
+DATE_WINDOW = 200
+TIME_WINDOW = 80
+AMOUNT_WINDOW = 200
+GUARANTEE_WINDOW = 400
 
-
-def guarantee_numbers(value):
-    # Order and wording differ ("2% / 800.00" vs "800.00 (2%)"), the numbers must not.
-    percents = {float(p) for p in PERCENT.findall(value)}
-    amounts = {float(a) for a in AMOUNT.findall(PERCENT.sub(" ", value))}
-    return percents, amounts
-
-
-def greek_amount(number):
-    # 55000.0 -> "55.000,00", the way amounts are printed in the documents.
-    return f"{number:,.2f}".replace(",", " ").replace(".", ",").replace(" ", ".")
-
-
-def value_renderings(field, gold):
-    """Ways the labelled value can be printed in a document, used to accept a page."""
-    value = gold["value"]
-    if field == "deadline" and re.fullmatch(r"\d{4}-\d{2}-\d{2}.*", value):
-        year, month, day = value[:10].split("-")
-        days, months = {day, day.lstrip("0")}, {month, month.lstrip("0")}
-        return {f"{d}{sep}{m}{sep}{year}" for d in days for m in months for sep in "/-."}
-    if field == "estimated_value" and AMOUNT.fullmatch(value):
-        return {greek_amount(float(value))}
-    if field == "bid_guarantee":
-        return {greek_amount(amount) for amount in guarantee_numbers(value)[1]}
-    return set()
+# Table-of-contents lines repeat every heading with dot leaders and a page number;
+# matching them would point every field at the contents page.
+TOC_LINE = re.compile(r"\.{4,}")
+TOC_LOOKAHEAD = 40
 
 
-def value_scorable(field, gold):
-    if gold["status"] not in PRESENT or not gold["value"]:
-        return False
-    if field == "bid_guarantee":
-        # A gold value such as "per lot table" holds no number to compare.
-        return any(guarantee_numbers(gold["value"]))
-    return True
+def fold(text):
+    # One character in, one character out, so positions in the folded text are
+    # also positions in the original text and a quote can be cut from it.
+    return "".join(unicodedata.normalize("NFD", ch)[0].lower() for ch in text)
 
 
-def value_matches(field, gold, predicted):
-    expected, got = gold["value"], (predicted or "").strip()
-    if field == "deadline":
-        if "relative deadline" in gold["notes"]:
-            return squash(expected) == squash(got)
-        # When the document gives no time, a predicted time is not held against the method.
-        return got == expected if " " in expected else got[:10] == expected
-    if field == "estimated_value":
-        try:
-            return abs(float(got) - float(expected)) < 0.005
-        except ValueError:
-            return False
-    return guarantee_numbers(got) == guarantee_numbers(expected)
+def flat(text):
+    return " ".join(text.split())
 
 
-def score(method):
-    gold_rows = load(FIELDS_PATH)
-    predictions_path = PREDICTIONS_DIR / f"{method}.csv"
-    if not predictions_path.exists():
-        print(f"No predictions at {predictions_path.relative_to(PROJECT_ROOT)}")
-        sys.exit(1)
-    predicted_rows = load(predictions_path)
+def plausible(date):
+    day, month, year = (int(g) for g in date.groups())
+    return 1 <= day <= 31 and 1 <= month <= 12 and 2000 <= year <= 2100
 
-    pages_by_adam = {}
-    for adam, _ in gold_rows:
-        if adam not in pages_by_adam:
-            pages_by_adam[adam] = extract_pages(PDF_DIR / f"{adam}.pdf")
 
-    totals = {field: {k: [0, 0] for k in ("status", "value", "page", "full")} for field in FIELDS}
-    invented = {field: [0, 0] for field in FIELDS}
-    missed = {field: [0, 0] for field in FIELDS}
-    quotes = [0, 0]
-    errors = []
+def greek_amount(text):
+    return text.replace(".", "").replace(",", ".")
 
-    for (adam, field), gold in sorted(gold_rows.items()):
-        pages = pages_by_adam[adam]
-        predicted = predicted_rows.get((adam, field), {})
-        p_status = predicted.get("status", "missing") or "missing"
-        flags = []
 
-        status_ok = p_status == gold["status"]
-        totals[field]["status"][0] += status_ok
-        totals[field]["status"][1] += 1
-        if not status_ok:
-            flags.append("status")
+def phrase_hits(pages, phrase):
+    """Yield (page, flattened text, folded text, end of phrase) in document order."""
+    for page in pages:
+        if not page.reliable:
+            continue
+        text = flat(page.text)
+        folded = fold(text)
+        for match in phrase.finditer(folded):
+            if TOC_LINE.search(folded[match.end():match.end() + TOC_LOOKAHEAD]):
+                continue
+            yield page, text, folded, match
 
-        value_ok = True
-        if value_scorable(field, gold):
-            value_ok = value_matches(field, gold, predicted.get("value"))
-            totals[field]["value"][0] += value_ok
-            totals[field]["value"][1] += 1
-            if not value_ok:
-                flags.append("value")
 
-        # A page counts if it holds the labelled sentence or the value itself, so a
-        # method that finds the same value stated in other words elsewhere is not penalised.
-        if gold["quote"]:
-            targets = {squash(gold["quote"])} | {squash(r) for r in value_renderings(field, gold)}
-            gold_pages = {p.number for p in pages if any(t in squash(p.text) for t in targets)}
-            page = predicted.get("page", "")
-            page_ok = page.isdigit() and int(page) in gold_pages
-            totals[field]["page"][0] += page_ok
-            totals[field]["page"][1] += 1
-            if not page_ok:
-                flags.append("page")
+def find_deadline(pages):
+    for page, text, folded, match in phrase_hits(pages, DEADLINE_PHRASE):
+        window = folded[match.end():match.end() + DATE_WINDOW]
+        # Phone numbers and reference codes also look like d-d-dddd, so only a
+        # plausible calendar date is accepted.
+        date = next((d for d in DATE.finditer(window) if plausible(d)), None)
+        if not date:
+            continue
+        day, month, year = (int(g) for g in date.groups())
+        value = f"{year:04d}-{month:02d}-{day:02d}"
+        end = match.end() + date.end()
+        time = TIME.search(folded[end:end + TIME_WINDOW])
+        if time:
+            value += f" {int(time.group(1)):02d}:{time.group(2)}"
+            end += time.end()
+        return "stated", value, page.number, text[match.start():end]
+    return "not_mentioned", "", "", ""
 
-        full_ok = status_ok and value_ok
-        totals[field]["full"][0] += full_ok
-        totals[field]["full"][1] += 1
 
-        # The two costly mistakes are counted apart from ordinary ones.
-        if gold["status"] == "not_mentioned":
-            invented[field][1] += 1
-            if p_status in PRESENT:
-                invented[field][0] += 1
-                flags.append("INVENTED")
-        else:
-            missed[field][1] += 1
-            if p_status == "not_mentioned":
-                missed[field][0] += 1
-                flags.append("MISSED")
+def find_value(pages):
+    for page, text, folded, match in phrase_hits(pages, VALUE_PHRASE):
+        amount = GREEK_AMOUNT.search(text, match.end(), match.end() + AMOUNT_WINDOW)
+        if amount:
+            quote = text[match.start():amount.end()]
+            return "stated", greek_amount(amount.group()), page.number, quote
+    return "not_mentioned", "", "", ""
 
-        # Faithfulness: does the method's own quote exist on the page it names?
-        p_quote, p_page = predicted.get("quote", ""), predicted.get("page", "")
-        if p_quote and p_page.isdigit() and 1 <= int(p_page) <= len(pages):
-            quotes[1] += 1
-            if squash(p_quote) in squash(pages[int(p_page) - 1].text):
-                quotes[0] += 1
-            else:
-                flags.append("quote not on page")
 
-        if flags:
-            errors.append(
-                f"  {adam} {field:<16} [{', '.join(flags)}]\n"
-                f"      gold: {gold['status']} {gold['value']!r} p.{gold['page'] or '-'}\n"
-                f"      pred: {p_status} {predicted.get('value', '')!r} p.{p_page or '-'}"
-            )
+def find_guarantee(pages):
+    for page, text, folded, match in phrase_hits(pages, GUARANTEE_PHRASE):
+        window_end = match.end() + GUARANTEE_WINDOW
+        percent = PERCENT.search(text, match.end(), window_end)
+        amount = GREEK_AMOUNT.search(text, match.end(), window_end)
+        parts = []
+        if percent:
+            parts.append(f"{percent.group(1).replace(',', '.')}%")
+        if amount:
+            parts.append(greek_amount(amount.group()))
+        ends = [m.end() for m in (percent, amount) if m] or [match.end()]
+        return "required", " / ".join(parts), page.number, text[match.start():max(ends)]
+    return "not_mentioned", "", "", ""
 
-    def ratio(pair):
-        return f"{pair[0]}/{pair[1]}" if pair[1] else "-"
 
-    print(f"=== {method} ===\n")
-    print(f"{'field':<16}{'status':>8}{'value':>8}{'page':>8}{'full':>8}{'invented':>10}{'missed':>8}")
-    for field in FIELDS:
-        t = totals[field]
-        print(f"{field:<16}{ratio(t['status']):>8}{ratio(t['value']):>8}{ratio(t['page']):>8}"
-              f"{ratio(t['full']):>8}{ratio(invented[field]):>10}{ratio(missed[field]):>8}")
+FINDERS = {
+    "deadline": find_deadline,
+    "estimated_value": find_value,
+    "bid_guarantee": find_guarantee,
+}
 
-    # The floor any method must beat: always answering the most common status.
-    print("\nAlways-majority status:")
-    for field in FIELDS:
-        counts = {}
-        for (_, f), gold in gold_rows.items():
-            if f == field:
-                counts[gold["status"]] = counts.get(gold["status"], 0) + 1
-        top = max(counts, key=counts.get)
-        print(f"  {field:<16} always {top}: {counts[top]}/{sum(counts.values())}")
 
-    print(f"\nQuotes found on the stated page: {ratio(quotes)}")
-    print(f"\nRows with errors ({len(errors)}):")
-    print("\n".join(errors))
+def main():
+    with FIELDS_PATH.open(encoding="utf-8-sig", newline="") as handle:
+        # Only the list of documents is read from the labels, never the answers.
+        adams = list(dict.fromkeys(row["adam"] for row in csv.DictReader(handle)))
+
+    PREDICTIONS_DIR.mkdir(parents=True, exist_ok=True)
+    with OUT_PATH.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(COLUMNS)
+        for adam in adams:
+            pages = extract_pages(PDF_DIR / f"{adam}.pdf")
+            for field, finder in FINDERS.items():
+                status, value, page, quote = finder(pages)
+                writer.writerow([adam, field, status, value, page, "rules", quote])
+
+    print(f"Wrote {OUT_PATH.relative_to(PROJECT_ROOT)} for {len(adams)} documents")
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python scripts\\evaluate_fields.py <method>   e.g. rules")
-        sys.exit(1)
-    score(sys.argv[1])
+    main()
