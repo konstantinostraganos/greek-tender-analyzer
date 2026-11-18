@@ -88,6 +88,12 @@ def score(method):
         sys.exit(1)
     predicted_rows = load(predictions_path)
 
+    # A trial run on a few documents, or a run stopped by the daily token limit,
+    # is scored on the documents it covers instead of counting the rest as wrong.
+    covered = {adam for adam, _ in predicted_rows}
+    left_out = {adam for adam, _ in gold_rows} - covered
+    gold_rows = {key: row for key, row in gold_rows.items() if key[0] in covered}
+
     pages_by_adam = {}
     for adam, _ in gold_rows:
         if adam not in pages_by_adam:
@@ -166,7 +172,10 @@ def score(method):
     def ratio(pair):
         return f"{pair[0]}/{pair[1]}" if pair[1] else "-"
 
-    print(f"=== {method} ===\n")
+    print(f"=== {method} ===")
+    if left_out:
+        print(f"Scored on {len(covered)} documents; {len(left_out)} without predictions left out")
+    print()
     print(f"{'field':<16}{'status':>8}{'value':>8}{'page':>8}{'full':>8}{'invented':>10}{'missed':>8}")
     for field in FIELDS:
         t = totals[field]
