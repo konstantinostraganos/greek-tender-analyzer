@@ -8,10 +8,11 @@ answer can be checked against the document instead of trusted.
 import hashlib
 import json
 import re
-from dataclasses import asdict, dataclass, field as dataclass_field
+from dataclasses import asdict, dataclass, field as dataclass_field, replace
 from pathlib import Path
 
 from tender_analyzer.document_check import DEFAULT_MODEL, REASONING_EFFORT
+from tender_analyzer.normalize import normalize_text
 from tender_analyzer.retrieval import FIELD_QUERIES, rank_pages
 
 # Three pages hold the labelled answer for 47 of 50 fields (scripts/evaluate_retrieval.py)
@@ -83,6 +84,10 @@ SPACE_RUN = re.compile(r"[ \t]+")
 BLANK_LINES = re.compile(r"\n\s*\n+")
 DOT_LEADER = re.compile(r"\.{4,}")
 
+# Models often trim a quote and mark the cut with "..." or wrap it in quotation marks;
+# neither changes the sentence, so they are ignored when the quote is checked.
+QUOTE_EDGES = " \t\n\"'«»“”‘’….,;:"
+
 
 @dataclass(frozen=True)
 class FieldAnswer:
@@ -93,9 +98,20 @@ class FieldAnswer:
     quote: str
     retrieved_pages: list = dataclass_field(default_factory=list)
     error: str = ""
+    second_look: bool = False
     prompt_tokens: int = 0
     completion_tokens: int = 0
     cached: bool = False
+
+
+def _squash(text):
+    return " ".join(normalize_text(text).split()).lower()
+
+
+def quote_found(quote, page_text):
+    """Whether a quote occurs word for word in a page; the check needs only the PDF."""
+    core = (quote or "").strip(QUOTE_EDGES)
+    return bool(core) and _squash(core) in _squash(page_text)
 
 
 def _compact(text):
@@ -137,8 +153,9 @@ def _parse(field, content, retrieved):
     }
 
 
-def extract_field(pages, field, client, model=DEFAULT_MODEL, cache_dir=None):
-    retrieved = rank_pages(pages, FIELD_QUERIES[field])[:TOP_K]
+def extract_field(pages, field, client, model=DEFAULT_MODEL, cache_dir=None, skip=0):
+    # skip > 0 reads the next pages of the same ranking, for a second look.
+    retrieved = rank_pages(pages, FIELD_QUERIES[field])[skip:skip + TOP_K]
     if not retrieved:
         return FieldAnswer(field, None, "", None, "", [], error="no readable pages")
 
@@ -181,3 +198,36 @@ def extract_field(pages, field, client, model=DEFAULT_MODEL, cache_dir=None):
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         cache_path.write_text(json.dumps(asdict(answer), ensure_ascii=False), encoding="utf-8")
     return answer
+
+
+def _needs_second_look(answer):
+    # The model's own way of saying it did not find the value on the pages it was shown.
+    return answer.status == "not_mentioned" or (answer.status == "required" and not answer.value)
+
+
+def extract_field_with_second_look(pages, field, client, model=DEFAULT_MODEL, cache_dir=None):
+    """Ask again with the next pages when the first answer found nothing.
+
+    Most remaining errors came from retrieval: the right page was ranked just below the
+    first three, often behind model guarantee letters in an annex. The second answer
+    replaces the first only if it gives a value and its quote is really on its page,
+    so a correct "not mentioned" is not easily overturned by a guess.
+    """
+    first = extract_field(pages, field, client, model=model, cache_dir=cache_dir)
+    if not _needs_second_look(first):
+        return first
+    second = extract_field(pages, field, client, model=model, cache_dir=cache_dir, skip=TOP_K)
+    if not second.retrieved_pages:
+        return first  # a short document has no further pages to look at
+    # Only tokens actually spent in this run are reported; cached answers cost nothing now.
+    fresh = [answer for answer in (first, second) if not answer.cached]
+    combined = {
+        "prompt_tokens": sum(answer.prompt_tokens for answer in fresh),
+        "completion_tokens": sum(answer.completion_tokens for answer in fresh),
+        "cached": not fresh,
+    }
+    by_number = {page.number: page for page in pages}
+    verified = second.page in by_number and quote_found(second.quote, by_number[second.page].text)
+    if second.status in ALLOWED_STATUS[field] and second.value and verified:
+        return replace(second, second_look=True, **combined)
+    return replace(first, **combined)

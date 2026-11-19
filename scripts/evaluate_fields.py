@@ -11,6 +11,7 @@ import csv
 import re
 import sys
 
+from tender_analyzer.field_extraction import quote_found
 from tender_analyzer.pages import extract_pages
 
 # Works because Python puts this script's own folder (scripts/) on the import path.
@@ -157,7 +158,8 @@ def score(method):
         p_quote, p_page = predicted.get("quote", ""), predicted.get("page", "")
         if p_quote and p_page.isdigit() and 1 <= int(p_page) <= len(pages):
             quotes[1] += 1
-            if squash(p_quote) in squash(pages[int(p_page) - 1].text):
+            # The same check the application runs on new documents, where no labels exist.
+            if quote_found(p_quote, pages[int(p_page) - 1].text):
                 quotes[0] += 1
             else:
                 flags.append("quote not on page")
