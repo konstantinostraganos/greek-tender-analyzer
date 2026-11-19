@@ -12,7 +12,43 @@ should bid and does not replace legal review.
 **Status:**
 - Phase 1 complete: reliable per-page text extraction.
 - Step 0 complete on the development set: deciding whether a PDF is a full tender.
-- Field extraction in progress: ground-truth labels for the first three fields.
+- Step 1 complete on the development set for three fields: deadline, estimated value, bid guarantee.
+- Next: a test set of newer, unseen documents, then a web demo.
+
+## Usage
+
+```cmd
+python -m tender_analyzer data\raw\pdfs\24PROC014901882.pdf
+```
+
+```
+Αρχείο: 24PROC014901882.pdf
+
+Έγγραφο:   πλήρης διακήρυξη (σελ. 1) ✅
+
+Προθεσμία: 2024-07-12 15:00  (σελ. 2)  ✅
+           «Ηλεκτρονική Υποβολή: 12-7-2024, ημέρα , ώρα 15:00»
+Αξία:      851000.00  (σελ. 10)  ✅
+           «Η Συνολική Εκτιμώμενη Αξία της σύμβασης ανέρχεται σε: 851.000,00€ χωρίς ΦΠΑ, (Προϋπολογισμός με ΦΠΑ: 1.055.240,00€, ΦΠΑ 24% 204.240,00€)»
+Εγγύηση:   2% / 15.820,00€  (σελ. 20)  ⚠️ χαμηλότερη βεβαιότητα, έλεγξε τη σελίδα
+           «ποσού δεκαπέντε χιλιάδων οχτακοσίων είκοσι ευρώ (15.820,00€), η οποία αντιστοιχεί στο 2% της εκτιμώμενης αξίας της σύμβασης μη συμπεριλαμβανομένου ΦΠΑ και του δικαιώματος προαίρεσης.»
+
+Tokens: 0  (όλα από την cache)
+```
+
+Every answer comes with its physical page and the exact sentence it was taken from,
+so the reader can check it instead of trusting it. The indicator says how much to trust it:
+
+| Indicator | Meaning |
+|---|---|
+| ✅ | The quote occurs verbatim on the cited page |
+| ⚠️ χαμηλότερη βεβαιότητα | Found only by the second look (see Step 1) |
+| ⚠️ η απόδειξη δεν ταιριάζει | The quote was not found verbatim on the cited page |
+
+If Step 0 decides the PDF is not a full tender (a summary, an EU form, an extension),
+the tool prints the document type and the reason and stops: field accuracy was
+only measured on full tenders. Requires a Groq API key (see Setup); answers are
+cached, so rerunning a document costs no tokens.
 
 ## Phase 1 results
 
@@ -168,10 +204,110 @@ the exact text sent, the prompt version and the model settings.
 
 ### Design decision from the error analysis
 
-A summary can still contain some fields (deadline, value, guarantee). Instead of
-only rejecting it, the tool will mark it as a summary, show the fields it does
-state, and report the rest as *Παραπέμπει αλλού* (refers elsewhere) rather than
-*Δεν αναφέρεται* (not mentioned).
+A summary can still contain some fields (deadline, value, guarantee). The planned
+handling is to mark it as a summary, show the fields it does state, and report the
+rest as *Παραπέμπει αλλού* (refers elsewhere) rather than *Δεν αναφέρεται*
+(not mentioned). Until then, the tool stops at Step 0 for anything that is not a
+full tender.
+
+## Step 1: field extraction
+
+### Ground truth
+
+The 20 readable full tenders were labeled by hand for three fields, 60 labels in
+`data/labels/fields.csv`, following `data/labels/FIELD_GUIDELINES.md`. Each label
+has a status (`stated`, `required`, `not_mentioned`, ...), a normalized value, the
+physical page and the exact quote.
+
+| Field | Labels |
+|---|---|
+| Deadline | 20 stated |
+| Estimated value | 19 stated, 1 not mentioned |
+| Bid guarantee | 11 required, 9 not mentioned |
+
+`scripts/check_fields.py` validates formats and checks that every quote occurs on
+the page it cites. It found several wrong page numbers in the labels themselves:
+the PDF viewer reports the page that fills most of the screen, not the one being read.
+
+### Retrieval
+
+Documents have a median of 52 pages (maximum 233); sending a whole tender would
+exceed the free tier's 8,000 tokens per minute. Each field therefore has a fixed
+query, and BM25 (implemented in `retrieval.py`, k1 = 1.5, b = 0.75) ranks the pages.
+
+Recall@3 on the 50 labels that have a page:
+
+| Method | Deadline | Value | Guarantee | Total |
+|---|---|---|---|---|
+| First three pages | – | – | – | 23/50 |
+| **BM25** | **19/20** | **19/19** | **9/11** | **47/50** |
+| BM25 + 6-letter prefix stems | – | – | – | 38/50 |
+
+Prefix stemming (first 6 letters) made retrieval worse (47 → 38), so it was
+rejected. A proper Greek stemmer (Snowball) and embeddings were not tried.
+
+### Extraction
+
+`field_extraction.py`, one request per field:
+
+1. The top 3 BM25 pages (up to 5,000 characters each) are sent with `[Page N]` markers.
+2. The LLM (`openai/gpt-oss-120b` on Groq, temperature 0, JSON output) returns
+   status, value, page and quote. It must answer only from the excerpt, must not
+   compute amounts, and must copy the quote character for character.
+3. The code rejects statuses outside the allowed set and pages that were not sent,
+   then checks that the quote occurs verbatim on the cited page.
+4. **Second look:** if the answer is `not_mentioned`, or `required` without a value,
+   the question is asked again with pages ranked 4–6. The new answer replaces the
+   first only if it has a value and a verified quote.
+
+### Results on the development set
+
+*Full* means status and value both correct.
+
+| | Keyword rules | LLM | **LLM + second look** |
+|---|---|---|---|
+| Deadline | 16/20 | 18/20 | **19/20** |
+| Estimated value | 11/20 | 19/20 | **19/20** |
+| Bid guarantee | 18/20 | 18/20 | **19/20** |
+| **Total full** | 45/60 | 55/60 | **57/60** |
+| Invented a value the document does not state | 0/10 | 0/10 | 0/10 |
+| Quote found verbatim on the cited page | 44/44 | 46/47 | 48/49 |
+
+The rules cut their quote directly from the text, so 44/44 holds by construction.
+Reproduce with `scripts/extract_fields_rules.py`, `scripts/extract_fields_llm.py
+[--second-look]` and `scripts/evaluate_fields.py <rules|llm_v1|llm_v2>`.
+
+The keyword rules never invent a value, but they return a **wrong amount** for the
+estimated value in 6 of 20 documents (4 VAT-inclusive totals, one single lot, one
+total without the option), with nothing to warn the reader. This is the main gain
+from the LLM.
+
+The second look was adopted by a criterion fixed before its run: full answers
+increase and invented values stay at 0. Both held.
+
+**Remaining errors and regressions:**
+- `24PROC014199834` deadline: missed by both looks; the cause was not analysed.
+- `24PROC014197049` estimated value: **regression.** The first look abstained
+  (the amount sits in a table whose text extraction is broken); the second look
+  returned 1,674.00, the VAT-inclusive amount from another page.
+- `24PROC014660981` bid guarantee: **regression.** The tender sets 1% per lot in a
+  table; the second look returned "2%" from a different page. The label has no single
+  amount to compare, so *full* does not count this error; only the page check does.
+- `24PROC014901882` bid guarantee: the amount is correct but written in Greek
+  format (`15.820,00€`) and is scored as wrong. Amount normalization is planned.
+- `24PROC015024073` estimated value: the value is correct, but the model altered
+  the number words in its quote; the quote check caught it and the tool flags it.
+
+The two regressions show a gap in the adoption criterion: it did not measure
+*a wrong value where the first look abstained*. The test set will track it.
+
+**How much to trust these numbers:** the same 20 documents were used to write the
+prompts and to measure them, so these are development-set results and likely
+optimistic. A test set of newer documents will give the honest figure.
+
+**Cost:** about 13,500 tokens for `24PROC014901882` including Step 0 and one second
+look; the free tier's 200,000 tokens per day cover roughly 15 such documents.
+Every answer is cached by the exact text sent.
 
 ## Project structure
 
@@ -182,9 +318,12 @@ src/tender_analyzer/   application code
   text_signals.py      measurable text-quality signals
   reliability.py       per-page reliability verdict
   document_check.py    Step 0: is the PDF a full tender (rule + LLM)
+  retrieval.py         BM25 page ranking per field
+  field_extraction.py  Step 1: LLM extraction with quote check and second look
+  __main__.py          command line: PDF -> participation sheet
 scripts/               data preparation and experiments behind every decision
 data/labels/           manual ground truth and the guidelines used to write it
-tests/                 unit tests for normalization, text signals and reliability
+tests/                 unit tests for normalization, text signals, reliability and retrieval
 ```
 
 ## Setup
@@ -200,7 +339,7 @@ pip install -e .
 pytest
 ```
 
-The LLM checker needs a free Groq API key in a `.env` file in the project root
+Steps 0 and 1 need a free Groq API key in a `.env` file in the project root
 (the file is ignored by git):
 
 ```

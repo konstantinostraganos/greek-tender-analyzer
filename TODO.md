@@ -8,6 +8,10 @@ Agreed next steps. Items are removed once done.
       second-look regressions, limitations, dev-set caveat
 - [ ] README: note that 901882 guarantee amount was correct but scored wrong (Greek number format)
 - [ ] Push local commits
+- [x] README: field results (rules vs LLM v1 vs v2), retrieval recall, stemming negative result,
+      second-look regressions, limitations, dev-set caveat
+- [x] README: note that 901882 guarantee amount was correct but scored wrong (Greek number format)
+- [x] Push local commits
 
 ## Demo
 - [ ] Second-look answers shown as "⚠️ χαμηλότερη βεβαιότητα, έλεγξε τη σελίδα"
