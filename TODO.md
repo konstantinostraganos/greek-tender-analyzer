@@ -14,6 +14,7 @@ Agreed next steps. Items are removed once done.
 - [ ] Unverified quotes shown as "⚠️ η απόδειξη δεν ταιριάζει ακριβώς, έλεγξε τη σελίδα"
 - [ ] Normalise Greek-format amounts ("15.820,00€" -> "15820.00")
 - [ ] Practical: PyMuPDF size, shared API key and rate limits, AGPL "Source" link
+- [ ] Show a fixed Greek explanation per document label instead of the model's English reason
 
 ## Test set (new 2025-2026 documents)
 - [ ] Label with the same guidelines, evaluate once, no tuning afterwards
