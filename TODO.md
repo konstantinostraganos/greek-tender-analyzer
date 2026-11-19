@@ -3,11 +3,8 @@
 Agreed next steps. Items are removed once done.
 
 ## Presentable version
-- [ ] CLI command: any PDF -> participation sheet (Step 0 + 3 fields + confidence indicators)
-- [ ] README: field results (rules vs LLM v1 vs v2), retrieval recall, stemming negative result,
-      second-look regressions, limitations, dev-set caveat
-- [ ] README: note that 901882 guarantee amount was correct but scored wrong (Greek number format)
-- [ ] Push local commits
+## Presentable version
+- [x] CLI command: any PDF -> participation sheet (Step 0 + 3 fields + confidence indicators)
 - [x] README: field results (rules vs LLM v1 vs v2), retrieval recall, stemming negative result,
       second-look regressions, limitations, dev-set caveat
 - [x] README: note that 901882 guarantee amount was correct but scored wrong (Greek number format)
